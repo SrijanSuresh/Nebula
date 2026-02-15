@@ -3,6 +3,27 @@
 #include <iostream>
 using namespace std;
 
+
+// importing shader source
+
+const char* vertexShaderSource = R"(
+    #version 450 core
+    layout (location = 0) in vec3 aPos;
+    void main() {
+        gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);
+    }
+)";
+
+// 2. Fragment Shader Source
+const char* fragmentShaderSource = R"(
+    #version 450 core
+    out vec4 FragColor;
+    void main() {
+        FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f); // Orange color
+    }
+)";
+
+
 int main(){
 
     // graphics lib framework init
@@ -50,14 +71,29 @@ int main(){
     glBindBuffer(GL_ARRAY_BUFFER, 0);
     glBindVertexArray(0);
 
+    // SHADER LOGIC
+    unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER); // vertex shader
+    unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER); // fragment shader
+
+    glShaderSource(vertexShader, 1, &vertexShaderSource, NULL);
+    glShaderSource(fragmentShader, 1, &fragmentShaderSource, NULL);
+    
+    glCompileShader(vertexShader); glCompileShader(fragmentShader); // compiler
+
+    unsigned int shaderProgram = glCreateProgram(); // linker
+    glAttachShader(shaderProgram, vertexShader);
+    glAttachShader(shaderProgram, fragmentShader);
+    glLinkProgram(shaderProgram);
+    
     // window loop
     while(!glfwWindowShouldClose(window)){
     	// clear screen
     	glClearColor(0.05f, 0.05f, 0.1f, 1.0f);
     	glClear(GL_COLOR_BUFFER_BIT);
         
-	// draw
+	// attach shaders then draw
 	glBindVertexArray(vao);
+	glUseProgram(shaderProgram);
 	glDrawArrays(GL_TRIANGLES, 0, 3);
 
     	
@@ -67,6 +103,9 @@ int main(){
     }
     // unbind vector array object
     glBindVertexArray(0);
+
+    // delete shaders after use
+    glDeleteShader(vertexShader); glDeleteShader(fragmentShader);
 
     glfwTerminate();
     return 0;
