@@ -25,7 +25,8 @@ const char* fragmentShaderSource = R"(
     out vec4 FragColor;
     uniform float u_time;
     void main() {
-	float pulse = (sin(u_time * 2.0) + 1.0) / 2.0; // oscillation between 0 and 1
+	float offset = gl_FragCoord.x * 0.01 + gl_FragCoord.y * 0.01; // unique offset for each star
+	float pulse = (sin(u_time * 2.5 + offset) + 1.0) / 2.0; // oscillation between 0 and 1
         FragColor = vec4(1.0, 0.8, 0.5, pulse); // yellow-orange color
     }
 )";
