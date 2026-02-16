@@ -14,7 +14,11 @@ const char* vertexShaderSource = R"(
     layout (location = 0) in vec3 aPos;
     uniform float u_time; // retrieve uniform time from cpu to shader
     void main() {
-        gl_Position = vec4(aPos, 1.0);
+        vec3 pos = aPos;
+	// z position moved based on time then wraped using mod()
+	pos.z = mod(pos.z + u_time * 0.5 + 1.0, 2.0) - 1.0;
+	float zDepth = pos.z + 1.1; // avoid devide by 0
+	gl_Position = vec4(pos.x/zDepth, pos.y/zDepth, pos.z, 1.0);
 	gl_PointSize = 2.0;
     }
 )";
@@ -61,7 +65,7 @@ int main(){
     }
 
     // window setup
-    GLFWwindow* window = glfwCreateWindow(800, 600, "WindowGL", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(1200, 900, "WindowGL", NULL, NULL);
     
     if (window == NULL){
       	glfwTerminate();
