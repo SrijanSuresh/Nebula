@@ -1,0 +1,13 @@
+# Build Artifacts
+bin/
+build/
+*.o
+*.out
+
+# Executables
+main
+titan_nebula
+
+# OS specific
+.DS_Store
+Thumbs.db
