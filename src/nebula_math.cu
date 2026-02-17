@@ -1,5 +1,6 @@
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
+#include <cmath>
 
 // Simple hash function for CUDA randomness
 __device__ float fast_rand(int seed) {
@@ -10,30 +11,24 @@ __device__ float fast_rand(int seed) {
 __global__ void updateStarPositions(float* pos, float time, int numStars) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
     if (i >= numStars) return;
-    if (i < numStars) {
-        float x = pos[i * 3 + 0];
-        float y = pos[i * 3 + 1];
-        float z = pos[i * 3 + 2];
 
-        // 1. Apply Swirl
-        float theta = 0.005f; 
-        pos[i * 3 + 0] = sin(time + i);
-        pos[i * 3 + 1] = cos(time + i);
+    float x = pos[i * 3 + 0];
+    float y = pos[i * 3 + 1];
+    float z = pos[i * 3 + 2];
 
-        // 2. Continuous Z Movement
-        z += 0.004f; 
-        
-        // 3. Organic Reset
-        if (z > 1.0f) {
-            z = -1.0f;
-            // Randomize X and Y in range [-1, 1] to break the "box"
-            pos[i * 3 + 0] = fast_rand(i + (int)(time * 1000)) * 2.0f - 1.0f;
-            pos[i * 3 + 1] = fast_rand(i + 7) * 2.0f - 1.0f;
-        }
-        pos[i * 3 + 2] = z;
-    }
+    // Distance-based rotation speed (Differential Rotation)
+    float dist = sqrt(x*x + y*y);
+    float theta = 0.01f / (dist + 0.1f); 
+    
+    pos[i * 3 + 0] = x * cos(theta) - y * sin(theta);
+    pos[i * 3 + 1] = x * sin(theta) + y * cos(theta);
+
+    // Subtle drifting in Z
+    z += 0.002f * sinf(time * 0.5f + i * 0.001f);
+    if (z > 0.4f) z = -0.4f;
+    pos[i * 3 + 2] = z;
 }
-	
+
 extern "C" void launch_nebula_kernel(float* d_pos, float time, int numStars) {
     int threadsPerBlock = 256;
     int blocksPerGrid = (numStars + threadsPerBlock - 1) / threadsPerBlock;

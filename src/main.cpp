@@ -3,6 +3,7 @@
 #include <nebula.h>
 #include <iostream>
 #include <ctime>
+#include <cmath>
 #include <cstdlib>
 #include <vector>
 #include <cuda_runtime.h>
@@ -46,26 +47,28 @@ const char* fragmentShaderSource = R"(
 
 )";
 
-vector<float>generateStars(int count){
-	/* we are not using 2d vector since lookup of 2d vector is pretty 
-	 inefficient for gpu, so we flatten them into 1d contiguos array.
-	 so we have like [x_1,y_1,z_1,....,x_n,y_n,z_n] from this we can
-	 iterate position by setting:
-	 x index -> i*3, y index -> i*3+1, z index-> i*3+2 */
-	
-	vector<float>stars;
-	stars.reserve(count*3); // x,y,z
 
-	for(int i = 0; i < count; i++){
-	    float x = (float)rand()/(float)RAND_MAX * 2.0f - 1.0f;
-	    float y = (float)rand()/(float)RAND_MAX * 2.0f - 1.0f;
-	    float z = (float)rand()/(float)RAND_MAX * 2.0f - 1.0f;
-	    stars.push_back(x);
-	    stars.push_back(y);
-	    stars.push_back(z);
-	}
-	return stars;
+vector<float> generateStars(int count) {
+    vector<float> stars;
+    stars.reserve(count * 3);
+    for (int i = 0; i < count; i++) {
+        // Box-Muller transform for Gaussian distribution
+        float u1 = (float)rand() / RAND_MAX;
+        float u2 = (float)rand() / RAND_MAX;
+        float radius = sqrt(-2.0f * log(u1)) * 0.4f; // Controls "spread"
+        float angle = 2.0f * 3.14159f * u2;
+
+        float x = radius * cos(angle);
+        float y = radius * sin(angle);
+        float z = ((float)rand() / RAND_MAX * 2.0f - 1.0f) * 0.2f; // Keep it somewhat flat
+
+        stars.push_back(x);
+        stars.push_back(y);
+        stars.push_back(z);
+    }
+    return stars;
 }
+
 // cuda/opengl interoperability
 struct cudaGraphicsResource* cuda_vbo_resource;
 
@@ -77,7 +80,7 @@ int main(){
     }
 
     // window setup
-    GLFWwindow* window = glfwCreateWindow(1600, 900, "WindowGL", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(1920, 1080, "WindowGL", NULL, NULL);
     
     if (window == NULL){
       	glfwTerminate();
@@ -91,7 +94,7 @@ int main(){
     }
 
     // vertices for stars
-    vector<float> vertices = generateStars(100000);
+    vector<float> vertices = generateStars(1000000);
 
     // create a vector array object and buffer obj then bind it to GPU
     GLuint vao, vbo;
@@ -103,7 +106,7 @@ int main(){
     
     // creating buffer data
     float* d_nebula_ptr; // This is our dedicated CUDA buffer
-    size_t bufferSize = 100000 * 3 * sizeof(float);
+    size_t bufferSize = 1000000 * 3 * sizeof(float);
 
     // Allocate memory directly on the GPU
     cudaMalloc(&d_nebula_ptr, bufferSize);
@@ -150,7 +153,7 @@ int main(){
 	float timeVal = (float)glfwGetTime();
 
     	// 1. Run the physics kernel on our dedicated CUDA memory
-    	launch_nebula_kernel(d_nebula_ptr, timeVal, 100000);
+    	launch_nebula_kernel(d_nebula_ptr, timeVal, 1000000);
 
     	// 2. Manual Bridge: Move data from CUDA buffer to OpenGL buffer
    	 glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -165,7 +168,7 @@ int main(){
 	glUseProgram(shaderProgram);
 	float time_val = glfwGetTime(); // geting uniform time for star pulsing
 	glUniform1f(timeLoc, time_val);
-	glDrawArrays(GL_POINTS, 0, 100000);
+	glDrawArrays(GL_POINTS, 0, 1000000);
 
     	
 	// swap and poll
