@@ -102,15 +102,16 @@ int main(){
     glBindBuffer(GL_ARRAY_BUFFER, vbo);
     
     // creating buffer data
-    glBufferData(GL_ARRAY_BUFFER, vertices.size()*sizeof(float), vertices.data(), GL_STATIC_DRAW);
-    cudaError_t err = cudaGraphicsGLRegisterBuffer(&cuda_vbo_resource, vbo, cudaGraphicsRegisterFlagsWriteDiscard);
+    float* d_nebula_ptr; // This is our dedicated CUDA buffer
+    size_t bufferSize = 100000 * 3 * sizeof(float);
+
+    // Allocate memory directly on the GPU
+    cudaMalloc(&d_nebula_ptr, bufferSize);
+
+    // Initialize CUDA buffer with the starting positions
+    cudaMemcpy(d_nebula_ptr, vertices.data(), bufferSize, cudaMemcpyHostToDevice);
+    glBufferData(GL_ARRAY_BUFFER, vertices.size()*sizeof(float), vertices.data(), GL_DYNAMIC_DRAW);
     
-    if (err != cudaSuccess) {
-      printf("cudaGraphicsGLRegisterBuffer failed: %s\n", cudaGetErrorString(err));
-      // You can glfwTerminate() + return -1; here
-      glfwTerminate();
-      return -1;
-    }
     // read binary data for vbo
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
     glEnableVertexAttribArray(0);
@@ -146,22 +147,19 @@ int main(){
     	glClear(GL_COLOR_BUFFER_BIT);
         
 	// CUDA
-	cudaGraphicsMapResources(1, &cuda_vbo_resource, 0);
+	float timeVal = (float)glfwGetTime();
 
-	float* d_vbo_ptr; size_t num_bytes;
-	cudaGraphicsResourceGetMappedPointer((void**)&d_vbo_ptr, &num_bytes, cuda_vbo_resource);
-	
-	// kernel launch will go here
-	float timeVal = glfwGetTime(); 
-	if (num_bytes >= 100000 * 3 * sizeof(float)) {
-    	    launch_nebula_kernel(d_vbo_ptr, (float)glfwGetTime(), 100000);
-	}
-	cudaError_t err = cudaGetLastError();
-	if (err != cudaSuccess) {
-    	   printf("CUDA Error: %s\n", cudaGetErrorString(err));
-	}
-	cudaGraphicsUnmapResources(1, &cuda_vbo_resource, 0);
-	
+    	// 1. Run the physics kernel on our dedicated CUDA memory
+    	launch_nebula_kernel(d_nebula_ptr, timeVal, 100000);
+
+    	// 2. Manual Bridge: Move data from CUDA buffer to OpenGL buffer
+   	 glBindBuffer(GL_ARRAY_BUFFER, vbo);
+   	 void* gl_ptr = glMapBuffer(GL_ARRAY_BUFFER, GL_WRITE_ONLY);
+    
+    	// Copy updated positions into the memory OpenGL uses to draw
+    	cudaMemcpy(gl_ptr, d_nebula_ptr, bufferSize, cudaMemcpyDeviceToHost);
+    
+   	 glUnmapBuffer(GL_ARRAY_BUFFER);	
 	// attach shaders then draw
 	glBindVertexArray(vao);
 	glUseProgram(shaderProgram);
@@ -181,7 +179,7 @@ int main(){
     glDeleteShader(vertexShader); glDeleteShader(fragmentShader);
 
     glfwTerminate();
-    cudaGraphicsUnregisterResource(cuda_vbo_resource);
+    cudaFree(d_nebula_ptr);
     return 0;
 
 }

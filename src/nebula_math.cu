@@ -9,6 +9,7 @@ __device__ float fast_rand(int seed) {
 
 __global__ void updateStarPositions(float* pos, float time, int numStars) {
     int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= numStars) return;
     if (i < numStars) {
         float x = pos[i * 3 + 0];
         float y = pos[i * 3 + 1];
