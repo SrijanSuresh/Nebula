@@ -1,9 +1,13 @@
 #include <glad/glad.h>
 #include <GLFW/glfw3.h>
+#include <nebula.h>
 #include <iostream>
 #include <ctime>
 #include <cstdlib>
 #include <vector>
+#include <cuda_runtime.h>
+#include <cuda_gl_interop.h>
+
 using namespace std;
 
 
@@ -12,26 +16,38 @@ using namespace std;
 const char* vertexShaderSource = R"(
     #version 450 core
     layout (location = 0) in vec3 aPos;
-    uniform float u_time; // retrieve uniform time from cpu to shader
+    uniform float u_time;
+    out float v_z; // NEW: Pass Z to fragment shader
     void main() {
         vec3 pos = aPos;
-	// z position moved based on time then wraped using mod()
-	pos.z = mod(pos.z + u_time * 0.5 + 1.0, 2.0) - 1.0;
-	float zDepth = pos.z + 1.1; // avoid devide by 0
-	gl_Position = vec4(pos.x/zDepth, pos.y/zDepth, pos.z, 1.0);
-	gl_PointSize = 2.0;
+        pos.z = mod(pos.z + u_time * 0.2 + 1.0, 2.0) - 1.0;
+        
+        v_z = pos.z; // Store the current Z
+        float zDepth = pos.z + 1.5; 
+        
+        gl_Position = vec4(pos.x / zDepth, pos.y / zDepth, pos.z, 1.0);
+        gl_PointSize = 2.5; 
     }
 )";
-
 // 2. Fragment Shader Source
 const char* fragmentShaderSource = R"(
     #version 450 core
     out vec4 FragColor;
+    in float v_z; // NEW: Receive Z
     uniform float u_time;
     void main() {
-	float offset = gl_FragCoord.x * 0.01 + gl_FragCoord.y * 0.01; // unique offset for each star
-	float pulse = (sin(u_time * 2.5 + offset) + 1.0) / 2.0; // oscillation between 0 and 1
-        FragColor = vec4(1.0, 0.8, 0.5, pulse); // yellow-orange color
+        // Map Z [-1, 1] to a color factor [0, 1]
+        float depth = (v_z + 1.0) / 2.0; 
+        
+        // Color Shift: Distant stars are Blue, Close stars are Orange
+        vec3 farColor = vec3(0.1, 0.3, 0.8);
+        vec3 nearColor = vec3(1.0, 0.6, 0.2);
+        vec3 finalColor = mix(farColor, nearColor, depth);
+        
+        float pulse = (sin(u_time * 2.0 + v_z * 10.0) + 1.0) / 2.0;
+        
+        // Additive blending works best when distant stars are dimmer
+        FragColor = vec4(finalColor * pulse * depth, 1.0); 
     }
 )";
 
@@ -55,7 +71,8 @@ vector<float>generateStars(int count){
 	}
 	return stars;
 }
-
+// cuda/opengl interoperability
+struct cudaGraphicsResource* cuda_vbo_resource;
 
 int main(){
 
@@ -65,7 +82,7 @@ int main(){
     }
 
     // window setup
-    GLFWwindow* window = glfwCreateWindow(1200, 900, "WindowGL", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(1600, 900, "WindowGL", NULL, NULL);
     
     if (window == NULL){
       	glfwTerminate();
@@ -79,7 +96,7 @@ int main(){
     }
 
     // vertices for stars
-    vector<float> vertices = generateStars(1000);
+    vector<float> vertices = generateStars(100000);
 
     // create a vector array object and buffer obj then bind it to GPU
     GLuint vao, vbo;
@@ -91,7 +108,7 @@ int main(){
     
     // creating buffer data
     glBufferData(GL_ARRAY_BUFFER, vertices.size()*sizeof(float), vertices.data(), GL_STATIC_DRAW);
-    
+    cudaGraphicsGLRegisterBuffer(&cuda_vbo_resource, vbo, cudaGraphicsRegisterFlagsNone);
     // read binary data for vbo
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
     glEnableVertexAttribArray(0);
@@ -118,7 +135,7 @@ int main(){
     int timeLoc = glGetUniformLocation(shaderProgram, "u_time");
     
     glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); // to make star pulsing to look like fade
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE); // to make star pulsing to look like fade
     glEnable(GL_PROGRAM_POINT_SIZE); // WSL shader change fix
     // window loop
     while(!glfwWindowShouldClose(window)){
@@ -126,12 +143,22 @@ int main(){
     	glClearColor(0.05f, 0.05f, 0.1f, 1.0f);
     	glClear(GL_COLOR_BUFFER_BIT);
         
+	// CUDA
+	cudaGraphicsMapResources(1, &cuda_vbo_resource, 0);
+
+	float* d_vbo_ptr; size_t num_bytes;
+	cudaGraphicsResourceGetMappedPointer((void**)&d_vbo_ptr, &num_bytes, cuda_vbo_resource);
+	
+	// kernel launch will go here
+	
+	cudaGraphicsUnmapResources(1, &cuda_vbo_resource, 0);
+	
 	// attach shaders then draw
 	glBindVertexArray(vao);
 	glUseProgram(shaderProgram);
 	float timeVal = glfwGetTime(); // geting uniform time for star pulsing
 	glUniform1f(timeLoc, timeVal);
-	glDrawArrays(GL_POINTS, 0, 1000);
+	glDrawArrays(GL_POINTS, 0, 100000);
 
     	
 	// swap and poll
