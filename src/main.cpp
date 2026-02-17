@@ -14,41 +14,36 @@ using namespace std;
 // importing shader source
 // 1. Vector Shader Soruce
 const char* vertexShaderSource = R"(
-    #version 450 core
-    layout (location = 0) in vec3 aPos;
-    uniform float u_time;
-    out float v_z; // NEW: Pass Z to fragment shader
-    void main() {
-        vec3 pos = aPos;
-        pos.z = mod(pos.z + u_time * 0.2 + 1.0, 2.0) - 1.0;
-        
-        v_z = pos.z; // Store the current Z
-        float zDepth = pos.z + 1.5; 
-        
-        gl_Position = vec4(pos.x / zDepth, pos.y / zDepth, pos.z, 1.0);
-        gl_PointSize = 2.5; 
-    }
+  #version 450 core
+  layout (location = 0) in vec3 aPos;
+  out float v_z; 
+  void main() {
+    v_z = aPos.z;
+    float zDepth = aPos.z + 1.8; // Further back for better FOV
+    gl_Position = vec4(aPos.x / zDepth, aPos.y / zDepth, aPos.z, 1.0);
+    gl_PointSize = (aPos.z + 1.0) * 2.5; // Bigger stars when closer
+   }    
 )";
+
 // 2. Fragment Shader Source
 const char* fragmentShaderSource = R"(
-    #version 450 core
-    out vec4 FragColor;
-    in float v_z; // NEW: Receive Z
-    uniform float u_time;
-    void main() {
-        // Map Z [-1, 1] to a color factor [0, 1]
-        float depth = (v_z + 1.0) / 2.0; 
-        
-        // Color Shift: Distant stars are Blue, Close stars are Orange
-        vec3 farColor = vec3(0.1, 0.3, 0.8);
-        vec3 nearColor = vec3(1.0, 0.6, 0.2);
-        vec3 finalColor = mix(farColor, nearColor, depth);
-        
-        float pulse = (sin(u_time * 2.0 + v_z * 10.0) + 1.0) / 2.0;
-        
-        // Additive blending works best when distant stars are dimmer
-        FragColor = vec4(finalColor * pulse * depth, 1.0); 
-    }
+  #version 450 core
+  out vec4 FragColor;
+  in float v_z;
+  uniform float u_time;
+  void main() {
+     float t = (v_z + 1.0) / 2.0;
+     vec3 farColor = vec3(0.3, 0.0, 0.5);  // Deep Purple
+     vec3 nearColor = vec3(1.0, 0.7, 0.4); // Bright Peach/Gold
+     vec3 finalColor = mix(farColor, nearColor, t);
+    
+     // Smooth circle shape for particles
+     float dist = length(gl_PointCoord - vec2(0.5));
+     if (dist > 0.5) discard;
+    
+     FragColor = vec4(finalColor * (1.0 - dist * 2.0), 1.0);
+  }
+
 )";
 
 vector<float>generateStars(int count){
@@ -108,7 +103,14 @@ int main(){
     
     // creating buffer data
     glBufferData(GL_ARRAY_BUFFER, vertices.size()*sizeof(float), vertices.data(), GL_STATIC_DRAW);
-    cudaGraphicsGLRegisterBuffer(&cuda_vbo_resource, vbo, cudaGraphicsRegisterFlagsNone);
+    cudaError_t err = cudaGraphicsGLRegisterBuffer(&cuda_vbo_resource, vbo, cudaGraphicsRegisterFlagsWriteDiscard);
+    
+    if (err != cudaSuccess) {
+      printf("cudaGraphicsGLRegisterBuffer failed: %s\n", cudaGetErrorString(err));
+      // You can glfwTerminate() + return -1; here
+      glfwTerminate();
+      return -1;
+    }
     // read binary data for vbo
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, (void*)0);
     glEnableVertexAttribArray(0);
@@ -150,14 +152,21 @@ int main(){
 	cudaGraphicsResourceGetMappedPointer((void**)&d_vbo_ptr, &num_bytes, cuda_vbo_resource);
 	
 	// kernel launch will go here
-	
+	float timeVal = glfwGetTime(); 
+	if (num_bytes >= 100000 * 3 * sizeof(float)) {
+    	    launch_nebula_kernel(d_vbo_ptr, (float)glfwGetTime(), 100000);
+	}
+	cudaError_t err = cudaGetLastError();
+	if (err != cudaSuccess) {
+    	   printf("CUDA Error: %s\n", cudaGetErrorString(err));
+	}
 	cudaGraphicsUnmapResources(1, &cuda_vbo_resource, 0);
 	
 	// attach shaders then draw
 	glBindVertexArray(vao);
 	glUseProgram(shaderProgram);
-	float timeVal = glfwGetTime(); // geting uniform time for star pulsing
-	glUniform1f(timeLoc, timeVal);
+	float time_val = glfwGetTime(); // geting uniform time for star pulsing
+	glUniform1f(timeLoc, time_val);
 	glDrawArrays(GL_POINTS, 0, 100000);
 
     	
@@ -172,6 +181,7 @@ int main(){
     glDeleteShader(vertexShader); glDeleteShader(fragmentShader);
 
     glfwTerminate();
+    cudaGraphicsUnregisterResource(cuda_vbo_resource);
     return 0;
 
 }

@@ -1,9 +1,14 @@
 #ifndef NEBULA_H
 #define NEBULA_H
 
-// This tells the C++ compiler: "Don't mangle these names, look for them like C functions"
+#ifdef __cplusplus
 extern "C" {
-    void launch_nebula_kernel(float* d_pos, float time, int numStars);
-}
-
 #endif
+
+void launch_nebula_kernel(float* d_pos, float time, int numStars);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // NEBULA_H
