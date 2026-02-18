@@ -1,7 +1,7 @@
 # Titan-Nebula: High-Performance GPU Volumetric Renderer
 ![1 Million Stars](./assets/milstars.gif)
 *Caption: 1 Million particles rendered with volumetric smoothing and orbital tilt.*
-![100,000 Stars](./assets/hundk2.gif)
+![100,000 Stars](./assets/hundk.gif)
 *Caption: 100,000 particles.*
 ![20,000 Stars](./assets/twentk.gif)
 *Caption: 20,000 particles.*
@@ -34,3 +34,4 @@ This project focuses on high-throughput data pipelines and cross-environment sta
 make clean
 make all
 ./bin/titan_nebula
+
