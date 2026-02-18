@@ -20,9 +20,9 @@ const char* vertexShaderSource = R"(
   out float v_z; 
   void main() {
     v_z = aPos.z;
-    float zDepth = aPos.z + 1.8; // Further back for better FOV
+    float zDepth = aPos.z + 1.3; // Further back for better FOV
     gl_Position = vec4(aPos.x / zDepth, aPos.y / zDepth, aPos.z, 1.0);
-    gl_PointSize = 4.0 + (2.0 * (1.0 - v_z)); // Larger points for "gas" feel   
+    gl_PointSize = 1.5 + (2.0 * (1.0 - v_z)); // Larger points for "gas" feel   
   }    
 )";
 
@@ -41,14 +41,14 @@ const char* fragmentShaderSource = R"(
     float alpha = exp(-dist * dist * 15.0); 
 
     // Define Nebula Colors
-    vec3 coreColor = vec3(1.0, 0.8, 0.6); // Warm Peach
-    vec3 edgeColor = vec3(0.5, 0.2, 0.8); // Deep Purple
+    vec3 coreColor = vec3(1.0, 0.6, 0.1); // Warm Peach
+    vec3 edgeColor = vec3(0.6, 0.1, 0.8); // Deep Purple
     
     // Mix color based on depth (Z) and distance from center
     vec3 color = mix(edgeColor, coreColor, (v_z + 0.5));
     
     // Multiply alpha by a tiny factor so 1M stars don't just turn white
-    FragColor = vec4(color, alpha * 0.15);
+    FragColor = vec4(color, alpha * .815);
   }
 
 )";
