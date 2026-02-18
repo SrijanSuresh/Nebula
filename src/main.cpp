@@ -100,7 +100,7 @@ int main(){
     }
 
     // vertices for stars
-    vector<float> vertices = generateStars(1000000);
+    vector<float> vertices = generateStars(20000);
 
     // create a vector array object and buffer obj then bind it to GPU
     GLuint vao, vbo;
@@ -112,7 +112,7 @@ int main(){
     
     // creating buffer data
     float* d_nebula_ptr; // This is our dedicated CUDA buffer
-    size_t bufferSize = 1000000 * 3 * sizeof(float);
+    size_t bufferSize = 20000 * 3 * sizeof(float);
 
     // Allocate memory directly on the GPU
     cudaMalloc(&d_nebula_ptr, bufferSize);
@@ -159,7 +159,7 @@ int main(){
 	float timeVal = (float)glfwGetTime();
 
     	// 1. Run the physics kernel on our dedicated CUDA memory
-    	launch_nebula_kernel(d_nebula_ptr, timeVal, 1000000);
+    	launch_nebula_kernel(d_nebula_ptr, timeVal, 20000);
 
     	// 2. Manual Bridge: Move data from CUDA buffer to OpenGL buffer
    	 glBindBuffer(GL_ARRAY_BUFFER, vbo);
@@ -174,7 +174,7 @@ int main(){
 	glUseProgram(shaderProgram);
 	float time_val = glfwGetTime(); // geting uniform time for star pulsing
 	glUniform1f(timeLoc, time_val);
-	glDrawArrays(GL_POINTS, 0, 1000000);
+	glDrawArrays(GL_POINTS, 0, 20000);
 
     	
 	// swap and poll
