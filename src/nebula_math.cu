@@ -18,14 +18,15 @@ __global__ void updateStarPositions(float* pos, float time, int numStars) {
 
     // Distance-based rotation speed (Differential Rotation)
     float dist = sqrt(x*x + y*y);
-    float theta = 0.01f / (dist + 0.1f); 
+    float noise = fast_rand(i) + 0.02f;
+    float theta = (0.01f + noise) / (dist + 0.1f); 
     
     pos[i * 3 + 0] = x * cos(theta) - y * sin(theta);
     pos[i * 3 + 1] = x * sin(theta) + y * cos(theta);
 
     // Subtle drifting in Z
-    z += 0.002f * sinf(time * 0.5f + i * 0.001f);
-    if (z > 0.4f) z = -0.4f;
+    z += 0.001f * sinf(time + i);
+    //if (z > 0.5f) z = -0.5f;
     pos[i * 3 + 2] = z;
 }
 

@@ -22,8 +22,8 @@ const char* vertexShaderSource = R"(
     v_z = aPos.z;
     float zDepth = aPos.z + 1.8; // Further back for better FOV
     gl_Position = vec4(aPos.x / zDepth, aPos.y / zDepth, aPos.z, 1.0);
-    gl_PointSize = (aPos.z + 1.0) * 2.5; // Bigger stars when closer
-   }    
+    gl_PointSize = 4.0 + (2.0 * (1.0 - v_z)); // Larger points for "gas" feel   
+  }    
 )";
 
 // 2. Fragment Shader Source
@@ -33,16 +33,22 @@ const char* fragmentShaderSource = R"(
   in float v_z;
   uniform float u_time;
   void main() {
-     float t = (v_z + 1.0) / 2.0;
-     vec3 farColor = vec3(0.3, 0.0, 0.5);  // Deep Purple
-     vec3 nearColor = vec3(1.0, 0.7, 0.4); // Bright Peach/Gold
-     vec3 finalColor = mix(farColor, nearColor, t);
+  // Calculate distance from the center of the point (0.0 to 0.5)
+    float dist = distance(gl_PointCoord, vec2(0.5));
     
-     // Smooth circle shape for particles
-     float dist = length(gl_PointCoord - vec2(0.5));
-     if (dist > 0.5) discard;
+    // Create a "Soft" falloff (Gaussian-like)
+    // The further from center, the lower the alpha.
+    float alpha = exp(-dist * dist * 15.0); 
+
+    // Define Nebula Colors
+    vec3 coreColor = vec3(1.0, 0.8, 0.6); // Warm Peach
+    vec3 edgeColor = vec3(0.5, 0.2, 0.8); // Deep Purple
     
-     FragColor = vec4(finalColor * (1.0 - dist * 2.0), 1.0);
+    // Mix color based on depth (Z) and distance from center
+    vec3 color = mix(edgeColor, coreColor, (v_z + 0.5));
+    
+    // Multiply alpha by a tiny factor so 1M stars don't just turn white
+    FragColor = vec4(color, alpha * 0.15);
   }
 
 )";
